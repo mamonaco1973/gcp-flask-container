@@ -26,7 +26,7 @@ resource "google_cloud_run_service" "flask_service" {
   template {
     spec {
       containers {
-        image = "us-central1-docker.pkg.dev/${local.credentials.project_id}/flask-repository/flask-app:flask-app-rc1"
+        image = "us-central1-docker.pkg.dev/${local.credentials.project_id}/flask-repository/flask-app:rc1"
         # Sets the container image from Google Artifact Registry, dynamically referencing the project ID.
 
         ports {
