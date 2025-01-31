@@ -6,6 +6,8 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
+
 # Navigate to the 01-gar directory
 cd "01-gar" 
 echo "NOTE: Building GAR Instance."

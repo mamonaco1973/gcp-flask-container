@@ -6,7 +6,7 @@ if [ ! -d ".terraform" ]; then
     terraform init
 fi
 terraform destroy -auto-approve
-
+rm -f -r .terraform terraform*
 cd ..
 
 echo "NOTE: Destroying GAR instance."
@@ -17,7 +17,7 @@ if [ ! -d ".terraform" ]; then
 fi
 
 terraform destroy -auto-approve
- 
+rm -f -r .terraform terraform*
 cd ..
 
 
