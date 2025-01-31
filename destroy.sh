@@ -1,3 +1,5 @@
+export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
+
 cd "03-cloudrun"
 
 echo "NOTE: Destroying cloud run instance."
