@@ -3,5 +3,5 @@
 *.tfstate.backup
 *.terraform.lock.hcl
 *.terraform.*
-lambdas.zip
+credentials.json
 
