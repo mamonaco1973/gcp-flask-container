@@ -23,13 +23,11 @@ cd ..
 cd "02-docker"
 echo "NOTE: Building flask container with Docker."
 
-#RESOURCE_GROUP="flask-container-rg"
-#ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[?starts_with(name, 'flaskapp')].name | [0]" --output tsv)
-#az acr login --name $ACR_NAME
-#ACR_REPOSITORY="${ACR_NAME}.azurecr.io/flask-app"
-#IMAGE_TAG="flask-app-rc1"
-#docker build -t ${ACR_REPOSITORY}:${IMAGE_TAG} . --push
-
+gcloud auth configure-docker us-central1-docker.pkg.dev -q 
+project_id=$(jq -r '.project_id' "../credentials.json")
+echo $project_id
+GCR_IMAGE=us-central1-docker.pkg.dev/$project_id/flask-repository/flask-app:flask-app-rc1
+docker build -t $GCR_IMAGE . --push
 cd ..
 
 # Navigate to the 03-cloudrun directory
