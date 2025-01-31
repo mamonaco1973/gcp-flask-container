@@ -8,7 +8,7 @@ fi
 
 # Navigate to the 01-gar directory
 cd "01-gar" 
-echo "NOTE: Building GAR Repository."
+echo "NOTE: Building GAR Instance."
 
 if [ ! -d ".terraform" ]; then
     terraform init

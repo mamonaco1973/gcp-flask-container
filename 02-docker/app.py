@@ -13,7 +13,7 @@ collection_name = "candidates"
 candidates_app = Flask(__name__)
 
 # Get instance ID from hostname
-instance_id = os.popen("hostname -i").read().strip()
+instance_id = os.popen("hostname -I").read().strip()
 
 # Default route: Invalid request handler
 @candidates_app.route("/", methods=["GET"])
@@ -33,7 +33,7 @@ def gtg():
     details = request.args.get("details")
 
     if "details" in request.args:
-        return Response(json.dumps({"connected": "true", "instance-id": instance_id}), status=200, mimetype="application/json")
+        return Response(json.dumps({"connected": "true", "hostname": instance_id}), status=200, mimetype="application/json")
     else:
         return Response("{}", status=200, mimetype="application/json")
 
