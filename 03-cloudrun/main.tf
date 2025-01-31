@@ -65,3 +65,4 @@ resource "google_cloud_run_service_iam_member" "public_access" {
   role     = "roles/run.invoker"                             # Assigns the "run.invoker" role, allowing invocation of the service.
   member   = "allUsers"                                      # Grants access to anyone on the internet (public access).
 }
+

@@ -25,7 +25,6 @@ echo "NOTE: Building flask container with Docker."
 
 gcloud auth configure-docker us-central1-docker.pkg.dev -q 
 project_id=$(jq -r '.project_id' "../credentials.json")
-echo $project_id
 GCR_IMAGE=us-central1-docker.pkg.dev/$project_id/flask-repository/flask-app:flask-app-rc1
 docker build -t $GCR_IMAGE . --push
 cd ..
@@ -44,6 +43,6 @@ cd ..
 
 # Execute the validation script
 
-#./validate.sh
+./validate.sh
 
 

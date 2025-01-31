@@ -1,6 +1,6 @@
-cd "03-containerapp"
+cd "03-cloudrun"
 
-echo "NOTE: Destroying container app instance."
+echo "NOTE: Destroying cloud run instance."
 
 if [ ! -d ".terraform" ]; then
     terraform init
@@ -9,9 +9,9 @@ terraform destroy -auto-approve
 
 cd ..
 
-echo "NOTE: Destroying ACR instance."
+echo "NOTE: Destroying GAR instance."
 
-cd "01-acr"
+cd "01-gar"
 if [ ! -d ".terraform" ]; then
     terraform init
 fi
