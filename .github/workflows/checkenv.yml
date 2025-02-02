@@ -43,3 +43,23 @@ jobs:
 
             gcloud auth activate-service-account --key-file="./credentials.json"
 
+            # Check for Terraform backend configuration in the 01-gar directory.
+            backend=$(grep -r 'backend ' ./01-gar/*.tf || true)
+            if [ -z "$backend" ]; then
+              # Print an error message if no backend configuration is found.
+              echo "ERROR: No terraform backend configuration is defined for 01-gar."
+              # Exit the script with an error code to fail the workflow.
+              exit 1
+            fi
+
+            # Check for Terraform backend configuration in the 03-cloudrun directory.
+            backend=$(grep -r 'backend ' ./03-clounrun/*.tf || true)
+            if [ -z "$backend" ]; then
+              # Print an error message if no backend configuration is found.
+              echo "ERROR: No terraform backend configuration is defined for 03-cloudrun."
+              # Exit the script with an error code to fail the workflow.
+              exit 1
+            fi
+
+            # Inform the user that all required backend files exist.
+            echo "NOTE: All required backend files exist."
