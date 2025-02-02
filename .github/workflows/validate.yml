@@ -20,6 +20,9 @@ jobs:
             echo $GCP_CREDENTIALS_JSON > credentials.json
             export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
             gcloud auth activate-service-account --key-file="./credentials.json"
+            # Extract the project_id using jq
+            project_id=$(jq -r '.project_id' "./credentials.json")
+            gcloud config set project $project_id
 
             # Get the service URL
             SERVICE_URL=$(gcloud run services list --platform managed --format="value(URL)" | grep "flask-app-service")
