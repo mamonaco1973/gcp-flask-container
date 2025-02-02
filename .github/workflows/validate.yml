@@ -1,0 +1,69 @@
+name: Validate Solution  # The name of the GitHub Actions workflow. This workflow validates the deployed Azure solution.
+
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow from the GitHub Actions UI.
+
+env:
+    # Environment variables for secure Azure authentication using GitHub Secrets.
+    ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}  # Client ID for the Azure Service Principal.
+    ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}  # Secret for the Azure Service Principal authentication.
+    ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}  # The subscription ID where Azure resources are deployed.
+    ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}  # The Azure Active Directory tenant ID.
+
+jobs:
+  validate:
+    name: Validate Solution  # The only job in this workflow: responsible for validating the deployed solution.
+    runs-on: ubuntu-latest  # Executes on the latest Ubuntu-based runner provided by GitHub Actions.
+
+    steps:
+      - name: Checkout Code  # Step 1: Pull the repository code into the workflow.
+        uses: actions/checkout@v3  # Uses the official GitHub Action to check out the latest code from the repository.
+
+      - name: Validate Solution  # Step 2: The core step that performs validation of the deployed Azure solution.
+        run: |
+          # Authenticate with Azure using the Service Principal credentials provided via environment variables.
+          az login --service-principal --username "$ARM_CLIENT_ID" --password "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" > /dev/null 2>&1
+
+          # Define the Azure Container App name and the resource group where it's deployed.
+          CONTAINER_APP="flask-container-app"  # Name of the Azure Container App to be validated.
+          RESOURCE_GROUP="flask-container-rg"  # Resource group that contains the container app.
+
+          # Retrieve the fully qualified domain name (FQDN) for the deployed container app.
+          SERVICE_URL=$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" --query "properties.configuration.ingress.fqdn" --output tsv)
+
+          # Check if the SERVICE_URL is empty or not properly set, which indicates deployment issues.
+          if [[ -z "$SERVICE_URL" || "$SERVICE_URL" == "None" ]]; then
+              echo "ERROR: Service URL for $CONTAINER_APP is not found. Please check if the service exists and try again."
+              exit 1  # Exit the workflow with an error if the service URL is missing.
+          fi
+
+          # Waiting for the API to become reachable. This ensures that the app has started and is ready to accept requests.
+          echo "NOTE: Waiting for the API to be reachable..."
+
+          # Continuously check the health of the API until a successful response is received.
+          while true; do
+            # Perform a POST request to the /candidate endpoint and capture the HTTP status code.
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://$SERVICE_URL/candidate/John%20Smith")
+
+            # Check if the API responded with a 200 OK status, indicating it's operational.
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+                echo "NOTE: API is now reachable."  # Confirm that the API is accessible.
+                break  # Exit the loop since the API is now responsive.
+            else
+                echo "WARNING: API is not yet reachable (HTTP $HTTP_STATUS). Retrying..."  # Warn that the API is still not ready.
+                sleep 30  # Wait 30 seconds before retrying to avoid flooding the server with requests.
+            fi
+          done
+
+          # Navigate to the directory containing the test script for further validation.
+          cd ./02-docker
+
+          # Reformat the service URL to include the protocol for consistent usage in testing.
+          SERVICE_URL="https://$SERVICE_URL"
+
+          # Log the start of the detailed validation process using a custom Python test script.
+          echo "NOTE: Testing the Azure Container App Solution."        
+          echo "NOTE: URL for Azure Container App is $SERVICE_URL/gtg?details=true"  # Display the full endpoint being tested.
+
+          # Execute the test script that sends HTTP requests to the API endpoints and validates their responses.
+          ./test_candidates.py "$SERVICE_URL"  # The Python script performs additional validation on the deployed app.

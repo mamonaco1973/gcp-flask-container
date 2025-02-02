@@ -1,0 +1,57 @@
+name: Destroy Solution  # Name of the GitHub Actions workflow. This workflow handles the destruction (tear-down) of deployed Azure resources.
+
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow from the GitHub Actions UI.
+
+env:
+    # Environment variables for Azure authentication using GitHub Secrets. These credentials allow secure access to Azure resources.
+    ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}  # Client ID of the Azure Service Principal.
+    ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}  # Secret key for the Azure Service Principal.
+    ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}  # Azure subscription ID where resources are deployed.
+    ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}  # Tenant ID for the Azure Active Directory.
+
+jobs:
+  phase_0:  # First phase of the destruction process. This phase focuses on destroying the Azure Container App.
+    runs-on: ubuntu-latest  # The job runs on the latest Ubuntu-based virtual machine provided by GitHub Actions.
+    name: Destroy Container App  # Human-readable name for this phase.
+
+    steps:
+      - name: Checkout Code  # Step 1: Pull the latest code from the repository. Required to access Terraform configuration files.
+        uses: actions/checkout@v3  # Uses the official GitHub Action to check out the code.
+
+      - name: Setup Terraform  # Step 2: Set up Terraform, the Infrastructure as Code (IaC) tool used to manage Azure resources.
+        uses: hashicorp/setup-terraform@v2  # Uses the official Terraform GitHub Action to install and configure Terraform.
+
+      - name: Destroy Container App Instance  # Step 3: Destroy the deployed container app using Terraform.
+        run: |
+            cd "03-containerapp"  # Navigate to the directory containing the Terraform configuration for the container app.
+            echo "NOTE: Destroying container app instance."  # Log a message indicating the start of the destruction process.
+            
+            terraform init  # Initialize the Terraform working directory. This downloads provider plugins and sets up the environment.
+            
+            terraform destroy -auto-approve  # Destroy the container app resources without manual confirmation (auto-approve flag).
+            
+            cd ..  # Return to the root directory after the destruction process is complete.
+
+  phase_1:  # Second phase of the destruction process. This phase focuses on destroying the Azure Container Registry (ACR).
+    runs-on: ubuntu-latest  # The job runs on the latest Ubuntu-based virtual machine provided by GitHub Actions.
+    needs: phase_0  # This phase will only run after the successful completion of phase_0 (destroying the container app).
+    name: Destroy ACR  # Human-readable name for this phase.
+
+    steps:
+      - name: Checkout Code  # Step 1: Pull the latest code from the repository. Required to access Terraform configuration files.
+        uses: actions/checkout@v3  # Uses the official GitHub Action to check out the code.
+
+      - name: Setup Terraform  # Step 2: Set up Terraform for managing the destruction of ACR resources.
+        uses: hashicorp/setup-terraform@v2  # Uses the official Terraform GitHub Action to install and configure Terraform.
+
+      - name: Destroy ACR  # Step 3: Destroy the Azure Container Registry using Terraform.
+        run: |
+            cd "01-acr"  # Navigate to the directory containing the Terraform configuration for the ACR.
+            echo "NOTE: Destroying ACR Instance."  # Log a message indicating the start of the ACR destruction process.
+            
+            terraform init  # Initialize the Terraform working directory. This ensures that the correct backend and provider configurations are loaded.
+            
+            terraform destroy -auto-approve  # Destroy the ACR resources without manual confirmation (auto-approve flag).
+            
+            cd ..  # Return to the root directory after the ACR destruction process is complete.

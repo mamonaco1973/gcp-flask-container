@@ -1,0 +1,163 @@
+# Name of the workflow. This will be displayed in the GitHub Actions UI.
+name: Check Build Environment
+
+# Trigger configuration for the workflow.
+on:
+  # Allows the workflow to be manually triggered from the GitHub Actions UI.
+  workflow_dispatch:
+
+# Environment variables used in the workflow.
+env:
+    # Azure Service Principal Client ID pulled from GitHub Secrets.
+    ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID}}
+    # Azure Service Principal Client Secret pulled from GitHub Secrets.
+    ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+    # Azure Subscription ID pulled from GitHub Secrets.
+    ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+    # Azure Tenant ID pulled from GitHub Secrets.
+    ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID}}
+
+# Jobs define the tasks that will be executed as part of the workflow.
+jobs:
+  # A job named 'validate' to perform environment checks.
+  validate:
+    # Human-readable name for the job displayed in GitHub Actions.
+    name: Check Environment
+    # Specifies that the job will run on the latest Ubuntu GitHub-hosted runner.
+    runs-on: ubuntu-latest
+
+    # Steps define the sequence of tasks to be executed in the job.
+    steps:
+      # Step 1: Checkout the repository code onto the runner.
+      - name: Checkout Code
+        # Uses the official GitHub checkout action to pull the repository code.
+        uses: actions/checkout@v3
+
+      # Step 2: Install and configure Terraform.
+      - name: Setup Terraform
+        # Uses the official HashiCorp action to install Terraform.
+        uses: hashicorp/setup-terraform@v2
+
+      # Step 3: Install Docker Buildx, a tool for advanced Docker builds.
+      - name: Set up Docker Buildx
+        # Uses the official Docker action to set up Buildx.
+        uses: docker/setup-buildx-action@v2
+        with:
+            # Ensures Docker Buildx is installed on the runner.
+            install: true
+
+      # Step 4: Install HashiCorp Packer for creating machine images.
+      - name: Setup Packer
+        # Uses the official HashiCorp action to install Packer.
+        uses: hashicorp/setup-packer@v2
+
+      # Step 5: Validate the build environment.
+      - name: Validate Build Environment
+        run: |
+            # Display the installed versions of Azure CLI, Terraform, Docker, and Packer.
+            az --version  # Check if Azure CLI is installed and display its version.
+            terraform --version  # Check if Terraform is installed and display its version.
+            docker --version  # Check if Docker is installed and display its version.
+            packer --version  # Check if Packer is installed and display its version.
+
+            # Inform the user that environment variables are being validated.
+            echo "NOTE: Validating that required environment variables are set."
+
+            # Array of required environment variables.
+            required_vars=("ARM_CLIENT_ID" "ARM_CLIENT_SECRET" "ARM_SUBSCRIPTION_ID" "ARM_TENANT_ID")
+
+            # Flag to track if all required variables are set.
+            all_set=true
+
+            # Loop through the required variables and check if they are set.
+            for var in "${required_vars[@]}"; do
+              # Check if the variable is empty or not set.
+              if [ -z "${!var}" ]; then
+                # Print an error message if the variable is not set.
+                echo "ERROR: $var is not set or is empty."
+                # Set the flag to false if any variable is missing.
+                all_set=false
+              else
+                # Print a success message if the variable is set.
+                echo "NOTE: $var is set."
+              fi
+            done
+
+            # Final status of the environment variable check.
+            if [ "$all_set" = true ]; then
+                # Print a success message if all variables are set.
+                echo "NOTE: All required environment variables are set."
+            else
+                # Print an error message and exit if any variable is missing.
+                echo "ERROR: One or more required environment variables are missing or empty."
+                exit 1
+            fi
+
+            # Inform the user that the script is attempting to log in to Azure.
+            echo "NOTE: Logging in to Azure using Service Principal..."
+            # Log in to Azure using the Service Principal credentials.
+            az login --service-principal --username "$ARM_CLIENT_ID" --password "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" > /dev/null 2>&1
+
+            # Check the return code of the Azure login command.
+            if [ $? -ne 0 ]; then
+                # Print an error message if the login fails.
+                echo "ERROR: Failed to log into Azure. Please check your credentials and environment variables."
+                # Exit the script with an error code to fail the workflow.
+                exit 1
+            else
+                # Print a success message if the login is successful.
+                echo "NOTE: Successfully logged into Azure."
+            fi
+
+            # Register the Microsoft.App provider in Azure.
+            az provider register --namespace Microsoft.App
+
+            # Wait for the Microsoft.App provider to be registered.
+            while [[ "$(az provider show --namespace Microsoft.App --query "registrationState" --output tsv)" != "Registered" ]]; do
+              # Inform the user that the script is waiting for the provider to register.
+              echo "NOTE: Waiting for Microsoft.App to register..."
+              # Pause for 10 seconds before checking again.
+              sleep 10
+            done
+        
+            # Inform the user that the Microsoft.App provider is now registered.
+            echo "NOTE: Microsoft.App is currently registered!"
+
+            # Check for Terraform backend configuration in the 01-acr directory.
+            backend=$(grep -r 'backend ' ./01-acr/*.tf || true)
+            if [ -z "$backend" ]; then
+              # Print an error message if no backend configuration is found.
+              echo "ERROR: No terraform backend configuration is defined for 01-acr."
+              # Exit the script with an error code to fail the workflow.
+              exit 1
+            fi
+
+            # Check for Terraform backend configuration in the 03-containerapp directory.
+            backend=$(grep -r 'backend ' ./03-containerapp/*.tf || true)
+            if [ -z "$backend" ]; then
+              # Print an error message if no backend configuration is found.
+              echo "ERROR: No terraform backend configuration is defined for 03-containerapp."
+              # Exit the script with an error code to fail the workflow.
+              exit 1
+            fi
+
+            # Inform the user that all required backend files exist.
+            echo "NOTE: All required backend files exist."
+
+            # Get the current user or service principal
+            ASSIGNEE=$(az account show --query user.name -o tsv)
+
+            if [ -z "$ASSIGNEE" ]; then
+                echo "ERROR: Unable to retrieve the logged-in user or service principal."
+                exit 1
+            fi
+
+            # Check for the 'User Access Administrator' role
+            ROLE_CHECK=$(az role assignment list --assignee "$ASSIGNEE" --query "[?roleDefinitionName=='User Access Administrator']" -o tsv)
+
+            if [ -z "$ROLE_CHECK" ]; then
+              echo "ERROR: 'User Access Administrator' role is NOT assigned to current service principal."
+              exit 1
+            else
+              echo "NOTE: 'User Access Administrator' role is assigned to current service principal."
+            fi

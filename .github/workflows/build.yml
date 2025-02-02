@@ -1,0 +1,151 @@
+name: Build Solution  # Name of the GitHub Actions workflow
+
+on:
+  workflow_dispatch:  # Allows manual triggering of the workflow from GitHub Actions UI
+
+env:
+    # Setting up environment variables for Azure authentication using GitHub Secrets
+    ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+    ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+    ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+    ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+
+jobs:
+  deploy_phase_1:
+    name: Build ACR Instance  # First deployment phase: Setting up Azure Container Registry (ACR)
+    runs-on: ubuntu-latest  # Runs on the latest Ubuntu virtual machine
+    steps:
+      - name: Checkout Code  # Fetches the repository code for the job execution
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform  # Installs and configures Terraform for infrastructure management
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Apply Terraform  # Initializes and deploys ACR infrastructure using Terraform
+        run: |
+          cd "01-acr"
+          echo "NOTE: Building ACR Instance."
+
+          # Check if a Terraform backend configuration exists, as it is critical for remote state management
+          backend=$(grep -r 'backend ' *.tf || true)
+          if [ -z "$backend" ]; then
+              echo "ERROR: No terraform backend configuration is defined."
+              exit 1  # Exit the workflow with an error if no backend is found
+          fi
+
+          terraform init  # Initialize Terraform working directory
+          terraform apply -auto-approve  # Deploy infrastructure without manual approval
+          cd ..  # Return to the root directory
+
+  deploy_phase_2:
+    name: Build Flask Container  # Second deployment phase: Building and pushing Flask container image
+    needs: deploy_phase_1  # This phase depends on the successful completion of deploy_phase_1
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code  # Fetch repository code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx  # Configures Docker Buildx for multi-platform builds
+        uses: docker/setup-buildx-action@v2
+        with:
+            install: true  # Ensures Buildx is installed
+
+      - name: Build Flask Container  # Builds and pushes the Flask application container image to ACR
+        run: |
+          cd "02-docker"
+          echo "NOTE: Building Flask container with Docker."
+
+          # Authenticate with Azure using Service Principal credentials stored in environment variables
+          az login --service-principal --username "$ARM_CLIENT_ID" --password "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" > /dev/null 2>&1
+
+          # Define the Azure Resource Group and fetch the ACR (Azure Container Registry) name dynamically
+          RESOURCE_GROUP="flask-container-rg"
+          ACR_NAME=$(az acr list --resource-group $RESOURCE_GROUP --query "[?starts_with(name, 'flaskapp')].name | [0]" --output tsv)
+
+          # Authenticate Docker with the Azure Container Registry
+          az acr login --name $ACR_NAME
+
+          # Define repository name and image tag
+          ACR_REPOSITORY="${ACR_NAME}.azurecr.io/flask-app"
+          IMAGE_TAG="flask-app-rc1"
+
+          # Build and push the Docker image to ACR
+          docker build -t ${ACR_REPOSITORY}:${IMAGE_TAG} . --push
+
+          cd ..  # Return to root directory
+
+  deploy_phase_3:
+    name: Build Container App  # Third deployment phase: Deploying Flask container app to Azure
+    needs: deploy_phase_2  # Requires successful completion of deploy_phase_2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code  # Fetch repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Terraform  # Installs and configures Terraform
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Apply Terraform  # Deploys the container app using Terraform
+        run: |
+            cd 03-containerapp
+            echo "NOTE: Building container app instance and deploying Flask container."
+
+            # Check if Terraform backend configuration exists before proceeding
+            backend=$(grep -r 'backend ' *.tf || true)
+            if [ -z "$backend" ]; then
+              echo "ERROR: No terraform backend configuration is defined."
+              exit 1  # Exit with error if no backend configuration is found
+            fi
+
+            terraform init  # Initialize Terraform
+            terraform apply -auto-approve  # Apply Terraform configurations without manual approval
+            cd ..  # Return to root directory
+
+  validate:
+    name: Validate Solution  # Final phase: Validating the deployment
+    needs: deploy_phase_3  # This phase depends on the successful completion of deploy_phase_3
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code  # Fetch repository code
+        uses: actions/checkout@v3
+
+      - name: Validate Solution  # Validates the deployed application by making an HTTP request
+        run: |
+          # Authenticate with Azure using Service Principal credentials
+          az login --service-principal --username "$ARM_CLIENT_ID" --password "$ARM_CLIENT_SECRET" --tenant "$ARM_TENANT_ID" > /dev/null 2>&1
+
+          # Define variables for the container app and resource group
+          CONTAINER_APP="flask-container-app"
+          RESOURCE_GROUP="flask-container-rg"
+
+          # Retrieve the service URL from the Azure Container Apps
+          SERVICE_URL=$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" --query "properties.configuration.ingress.fqdn" --output tsv)
+
+          # Check if the SERVICE_URL is empty, indicating a deployment failure
+          if [[ -z "$SERVICE_URL" || "$SERVICE_URL" == "None" ]]; then
+              echo "ERROR: Service URL for $CONTAINER_APP is not found. Please check if the service exists and try again."
+              exit 1  # Exit with failure if the service URL is missing
+          fi
+
+          # Wait for the API to become reachable
+          echo "NOTE: Waiting for the API to be reachable..."
+
+          while true; do
+            # Make a test HTTP POST request and capture the HTTP status code
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://$SERVICE_URL/candidate/John%20Smith")
+
+            if [[ "$HTTP_STATUS" == "200" ]]; then
+                echo "NOTE: API is now reachable."
+                break  # Exit loop when API is successfully reachable
+            else
+                echo "WARNING: API is not yet reachable (HTTP $HTTP_STATUS). Retrying..."
+                sleep 30  # Wait before retrying
+            fi
+          done
+
+          # Proceed to test the deployed solution
+          cd ./02-docker
+          SERVICE_URL="https://$SERVICE_URL"
+          echo "NOTE: Testing the Azure Container App Solution."        
+          echo "NOTE: URL for Azure Container App is $SERVICE_URL/gtg?details=true"
+          ./test_candidates.py "$SERVICE_URL"  # Execute test script against the deployed service
