@@ -53,7 +53,7 @@ jobs:
             fi
 
             # Check for Terraform backend configuration in the 03-cloudrun directory.
-            backend=$(grep -r 'backend ' ./03-clounrun/*.tf || true)
+            backend=$(grep -r 'backend ' ./03-cloudrun/*.tf || true)
             if [ -z "$backend" ]; then
               # Print an error message if no backend configuration is found.
               echo "ERROR: No terraform backend configuration is defined for 03-cloudrun."
