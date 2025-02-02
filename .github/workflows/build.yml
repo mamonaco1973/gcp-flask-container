@@ -133,4 +133,4 @@ jobs:
             cd ./02-docker
             echo "NOTE: Testing the GCP Cloud Run Solution."
             echo "NOTE: URL for GCP Cloud Run is $SERVICE_URL/gtg?details=true"
-          ./test_candidates.py "$SERVICE_URL"
+            ./test_candidates.py "$SERVICE_URL"
