@@ -32,3 +32,14 @@ jobs:
             terraform --version
             docker --version
             packer --version
+            echo $GCP_CREDENTIALS_JSON > credentials.json
+            echo "NOTE: Validating credentials.json and test the gcloud command"
+
+            # Check if the file "./credentials.json" exists
+            if [[ ! -f "./credentials.json" ]]; then
+                echo "ERROR: The file './credentials.json' does not exist." >&2
+                exit 1
+            fi
+
+            gcloud auth activate-service-account --key-file="./credentials.json"
+
