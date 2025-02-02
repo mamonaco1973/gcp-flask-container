@@ -24,7 +24,7 @@ resource "random_string" "bucket_suffix" {
 resource "google_storage_bucket" "terraform_state" {
   name     = "terraform-state-${random_string.bucket_suffix.result}" # Unique bucket name
   location = "us-central1"
-
+  force_destroy = true  # Allow deletion of the bucket even if it contains objects.
   # Enable versioning for the bucket
   versioning {
     enabled = true
