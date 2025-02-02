@@ -8,7 +8,7 @@ env:
 
 jobs:
   deploy_phase_1:
-    name: Build ACR Instance
+    name: Build GAR Instance
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -52,6 +52,8 @@ jobs:
         run: |
             echo $GCP_CREDENTIALS_JSON > credentials.json
             export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
+            gcloud auth activate-service-account --key-file="./credentials.json"
+            
             cd "02-docker"
             echo "NOTE: Building flask container with Docker."
 
@@ -74,6 +76,8 @@ jobs:
 
       - name: Apply Terraform
         run: |
+            echo $GCP_CREDENTIALS_JSON > credentials.json
+            export GOOGLE_APPLICATION_CREDENTIALS="$(pwd)/credentials.json"
             cd 03-cloudrun
             echo "NOTE: Building cloud run instance and deploying Flask container."
 
