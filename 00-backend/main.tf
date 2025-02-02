@@ -29,11 +29,6 @@ resource "google_storage_bucket" "terraform_state" {
   versioning {
     enabled = true
   }
-
-  # Prevent accidental deletion of the bucket
-  lifecycle {
-    prevent_destroy = true
-  }
 }
 
 # Generate a file with the backend configuration
