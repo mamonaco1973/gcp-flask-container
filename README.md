@@ -41,6 +41,8 @@ Welcome to **Video 3** of the [Simple Containers Series](https://www.youtube.com
 3. **Deploy:** Cloud Run manages provisioning, load balancing, scaling, and monitoring automatically.
 4. **Manage:** Monitor logs, metrics, and scaling behaviors through the Google Cloud Console, `gcloud` CLI, or Cloud Monitoring.
 
+![diagram](gcp-flask-container.png)
+
 ## Prerequisites
 
 * [A Google Cloud Account](https://console.cloud.google.com/)
