@@ -19,7 +19,7 @@ Below, we’ll walk through the steps required to configure GitHub Actions for y
 
    - The source repository is a template repository so you will need to create your repository from the template. To create your repository from a template, navigate to template repository repository on GitHub, click the **"Use this template"** button, and follow the prompts to create your new repository.
 
-      ![template](.\use_this_template.png) 
+      ![template](use_this_template.png) 
 
 ### 2. **Clone the New Repository to Your Local Environment**
    - Once your repository is created, clone it to your local machine using the following command:
